@@ -180,11 +180,11 @@ function closeDialog() {
 function confirmDeactivation(student: Student) {
   const name = `${student.firstName} ${student.lastName}`
   ElMessageBox.confirm(
-    `${name} will no longer be able to log in, and a session she already has open is denied at her next request. ` +
-      'She can no longer submit weekly activity reports or peer evaluations; her teammates are neither asked nor ' +
-      'allowed to evaluate her, and peer evaluation reports show her only for the weeks already on record. ' +
-      'Her account, her membership of her current team, and her submitted work are kept, and the account can be ' +
-      'reactivated later. This does not delete the student.',
+    `${name} will no longer be able to log in, and any session already open is denied at the next request. ` +
+      'This student can no longer submit weekly activity reports or peer evaluations; teammates are neither asked ' +
+      'nor allowed to evaluate this student, and peer evaluation reports show this student only for the weeks ' +
+      'already on record. The account, the current team membership, and all submitted work are kept, and the ' +
+      'account can be reactivated later. This does not delete the student.',
     'Deactivate this student?',
     {
       confirmButtonText: 'Deactivate',

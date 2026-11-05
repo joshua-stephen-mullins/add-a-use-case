@@ -17,9 +17,9 @@ import java.util.function.Supplier;
  * included.
  *
  * <p>{@code UserOwnershipAuthorizationManager} is not reused because it admits the student herself and does not
- * admit a course admin who is not assigned to the section. Reads {@code studentId} and composes
- * {@link StudentSecurityService#isCurrentUserInstructorOfStudentSection} with
- * {@link StudentSecurityService#isCurrentUserAdminOfStudentCourse}. An id that is missing, not a number, or
+ * admit a course admin who is not assigned to the section. Reads {@code studentId} and delegates to
+ * {@link StudentSecurityService#canCurrentUserChangeStudentStanding}, which loads the student once and checks
+ * both clauses. An id that is missing, not a number, or
  * names no student is denied, so an outsider probing ids learns nothing (CO-ferpa).
  */
 @Component
@@ -38,9 +38,7 @@ public class StudentLifecycleAuthorizationManager implements AuthorizationManage
         if (studentId == null) {
             return new AuthorizationDecision(false);
         }
-        return new AuthorizationDecision(
-                this.studentSecurityService.isCurrentUserInstructorOfStudentSection(studentId)
-                        || this.studentSecurityService.isCurrentUserAdminOfStudentCourse(studentId));
+        return new AuthorizationDecision(this.studentSecurityService.canCurrentUserChangeStudentStanding(studentId));
     }
 
 }
