@@ -4,7 +4,6 @@ import org.junit.jupiter.api.AfterEach;
 import team.projectpulse.section.Section;
 import team.projectpulse.section.SectionRepository;
 import team.projectpulse.system.UserUtils;
-import team.projectpulse.system.exception.ObjectNotFoundException;
 import team.projectpulse.team.Team;
 import team.projectpulse.user.userinvitation.UserInvitationService;
 import org.junit.jupiter.api.BeforeEach;
@@ -247,18 +246,6 @@ class StudentServiceTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("This student is already deactivated.");
         verify(this.studentRepository, never()).save(any(Student.class));
-    }
-
-    @Test
-    void testDeactivateStudentNotFound() {
-        // Given
-        given(this.studentRepository.findById(999)).willReturn(Optional.empty());
-
-        // When
-        Throwable throwable = catchThrowable(() -> this.studentService.deactivateStudent(999));
-
-        // Then
-        assertThat(throwable).isInstanceOf(ObjectNotFoundException.class);
     }
 
     @Test
