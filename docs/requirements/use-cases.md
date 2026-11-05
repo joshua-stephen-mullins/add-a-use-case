@@ -1479,6 +1479,9 @@ Details:
 - **3b. The user is neither a course admin nor an instructor assigned to the student's course section:**
   - 3b1. The system offers no deactivation to such a user; if a deactivation request arrives anyway, the system denies it as forbidden, without naming the student or the reason, and changes nothing (BR-student-lifecycle).
   - 3b2. Use case ends.
+- **5a. The course admin or instructor cancels at the warning:**
+  - 5a1. The system closes the warning, changes nothing, and returns to the student's details.
+  - 5a2. Use case ends.
 
 **Priority:** Low
 **Frequency of Use:** Rare. Occurs occasionally when a student withdraws from a course section.
