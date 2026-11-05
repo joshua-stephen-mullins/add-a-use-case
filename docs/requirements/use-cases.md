@@ -1476,6 +1476,9 @@ Details:
 - **3a. The student is already deactivated:**
   - 3a1. The system offers no deactivation for a deactivated student; if a deactivation request arrives anyway, the system rejects it, informs the course admin or instructor that the student is already deactivated, and changes nothing.
   - 3a2. Use case ends.
+- **3b. The user is neither a course admin nor an instructor assigned to the student's course section:**
+  - 3b1. The system offers no deactivation to such a user; if a deactivation request arrives anyway, the system denies it as forbidden, without naming the student or the reason, and changes nothing (BR-student-lifecycle).
+  - 3b2. Use case ends.
 
 **Priority:** Low
 **Frequency of Use:** Rare. Occurs occasionally when a student withdraws from a course section.
