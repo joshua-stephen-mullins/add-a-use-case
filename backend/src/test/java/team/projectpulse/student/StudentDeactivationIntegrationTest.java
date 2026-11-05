@@ -117,6 +117,13 @@ class StudentDeactivationIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.flag").value(true))
                 .andExpect(jsonPath("$.data", Matchers.not(Matchers.empty())));
+
+        // FR-SEC-active-account: the token John got before his deactivation is refused on his next request
+        this.mockMvc.perform(get(this.baseUrl + "/students/" + this.john.getId()).accept(MediaType.APPLICATION_JSON).header(HttpHeaders.AUTHORIZATION, this.studentJohnToken))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.flag").value(false))
+                .andExpect(jsonPath("$.code").value(StatusCode.UNAUTHORIZED))
+                .andExpect(jsonPath("$.message").value("User account is abnormal."));
     }
 
     @Test

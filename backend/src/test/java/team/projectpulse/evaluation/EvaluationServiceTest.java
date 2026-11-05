@@ -32,6 +32,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 class EvaluationServiceTest {
@@ -590,6 +591,63 @@ class EvaluationServiceTest {
         assertThat(report.getPeerEvaluationAverages().get(1).getAverageTotalScore()).isCloseTo(50.0, within(0.01));
         assertThat(report.getPeerEvaluationAverages().get(2).getAverageTotalScore()).isCloseTo(51.0, within(0.01));
         assertThat(report.getPeerEvaluationAverages().get(3).getAverageTotalScore()).isCloseTo(52.0, within(0.01));
+    }
+
+    /**
+     * BR-deactivated-student-standing, report: a deactivated student is listed for a week in which at least one
+     * evaluation of her is on record, omitted for a week with none, while an active student with no evaluations
+     * is still listed.
+     */
+    @Test
+    void testGenerateWeeklyPeerEvaluationReportForSectionWithADeactivatedStudent() {
+        // Given
+        this.john.setEnabled(false); // John has evaluations in W31 and none in W32
+        given(this.sectionRepository.findById(anyInt())).willReturn(Optional.of(new Section("2023-2024", LocalDate.of(2023, 8, 14), LocalDate.of(2024, 4, 29), true, DayOfWeek.MONDAY, LocalTime.of(23, 59), DayOfWeek.TUESDAY, LocalTime.of(23, 59))));
+        given(this.studentRepository.findBySectionSectionId(anyInt())).willReturn(this.students);
+        // John's W31 evaluations are on record; nobody has any for W32, and the other, active, students have none at all
+        given(this.evaluationRepository.findByWeekAndEvaluateeId(anyString(), anyInt())).willAnswer(invocation ->
+                "2023-W31".equals(invocation.getArgument(0)) && Integer.valueOf(3).equals(invocation.getArgument(1))
+                        ? this.johnsEvaluations
+                        : List.of());
+
+        // When
+        WeeklyPeerEvaluationReport reportW31 = this.evaluationService.generateWeeklyPeerEvaluationReportForSection(2, "2023-W31");
+        WeeklyPeerEvaluationReport reportW32 = this.evaluationService.generateWeeklyPeerEvaluationReportForSection(2, "2023-W32");
+
+        // Then
+        assertThat(reportW31.getPeerEvaluationAverages()).extracting(PeerEvaluationAverage::getStudentId).contains(3);
+        assertThat(reportW31.getPeerEvaluationAverages()).hasSize(5);
+        assertThat(reportW32.getPeerEvaluationAverages()).extracting(PeerEvaluationAverage::getStudentId).doesNotContain(3);
+        assertThat(reportW32.getPeerEvaluationAverages()).hasSize(4); // The four active students, with no evaluations, are still listed
+    }
+
+    /**
+     * BR-deactivated-student-standing, evaluate: a deactivated evaluatee is refused; an active one on the same team is saved.
+     */
+    @Test
+    void testAddPeerEvaluationOfADeactivatedTeammate() {
+        // Given
+        LocalDate fixedDate = LocalDate.of(2023, 8, 13); // Previous week is 2023-W31
+        Clock fixedClock = Clock.fixed(fixedDate.atStartOfDay(ZoneId.systemDefault()).toInstant(), ZoneId.systemDefault());
+        given(this.clock.instant()).willReturn(fixedClock.instant());
+        given(this.clock.getZone()).willReturn(fixedClock.getZone());
+
+        this.woody.setEnabled(false);
+        PeerEvaluation ofWoody = new PeerEvaluation("2023-W31", amanda, woody, List.of(), "public comment", "private comment");
+
+        // When
+        Throwable throwable = catchThrowable(() -> this.evaluationService.addPeerEvaluation(ofWoody));
+
+        // Then
+        assertThat(throwable)
+                .isInstanceOf(PeerEvaluationIllegalArgumentException.class)
+                .hasMessage("You cannot evaluate a deactivated teammate.");
+        verify(this.evaluationRepository, never()).save(any(PeerEvaluation.class));
+
+        // And the same evaluator's evaluation of an active teammate is still saved
+        PeerEvaluation ofHerself = new PeerEvaluation("2023-W31", amanda, amanda, List.of(), "public comment", "private comment");
+        given(this.evaluationRepository.save(ofHerself)).willReturn(ofHerself);
+        assertThat(this.evaluationService.addPeerEvaluation(ofHerself)).isEqualTo(ofHerself);
     }
 
     @Test
