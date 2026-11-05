@@ -98,8 +98,10 @@ public class SecurityConfiguration {
 
     private final StudentInstructorAuthorizationManager studentInstructorAuthorizationManager;
 
+    private final StudentLifecycleAuthorizationManager studentLifecycleAuthorizationManager;
 
-    public SecurityConfiguration(CustomBasicAuthenticationEntryPoint customBasicAuthenticationEntryPoint, CustomBearerTokenAuthenticationEntryPoint customBearerTokenAuthenticationEntryPoint, CustomBearerTokenAccessDeniedHandler customBearerTokenAccessDeniedHandler, UserOwnershipAuthorizationManager userOwnershipAuthorizationManager, CourseOwnershipAuthorizationManager courseOwnershipAuthorizationManager, CourseMembershipAuthorizationManager courseMembershipAuthorizationManager, CriterionOwnershipAuthorizationManager criterionOwnershipAuthorizationManager, RubricOwnershipAuthorizationManager rubricOwnershipAuthorizationManager, CriterionMembershipAuthorizationManager criterionMembershipAuthorizationManager, RubricMembershipAuthorizationManager rubricMembershipAuthorizationManager, AssignCriterionToRubricAuthorizationManager assignCriterionToRubricAuthorizationManager, SectionMembershipAuthorizationManager sectionMembershipAuthorizationManager, SectionOwnershipAuthorizationManager sectionOwnershipAuthorizationManager, AssignRubricToSectionAuthorizationManager assignRubricToSectionAuthorizationManager, AssignInstructorToSectionAuthorizationManager assignInstructorToSectionAuthorizationManager, TeamMembershipAuthorizationManager teamMembershipAuthorizationManager, TeamOwnershipAuthorizationManager teamOwnershipAuthorizationManager, AssignStudentToTeamAuthorizationManager assignStudentToTeamAuthorizationManager, AssignInstructorToTeamAuthorizationManager assignInstructorToTeamAuthorizationManager, TransferTeamAuthorizationManager transferTeamAuthorizationManager, ActivityOwnershipAuthorizationManager activityOwnershipAuthorizationManager, ActivityMembershipAuthorizationManager activityMembershipAuthorizationManager, EvaluationOwnershipAuthorizationManager evaluationOwnershipAuthorizationManager, SectionInstructorAuthorizationManager sectionInstructorAuthorizationManager, StudentInstructorAuthorizationManager studentInstructorAuthorizationManager) throws NoSuchAlgorithmException {
+
+    public SecurityConfiguration(CustomBasicAuthenticationEntryPoint customBasicAuthenticationEntryPoint, CustomBearerTokenAuthenticationEntryPoint customBearerTokenAuthenticationEntryPoint, CustomBearerTokenAccessDeniedHandler customBearerTokenAccessDeniedHandler, UserOwnershipAuthorizationManager userOwnershipAuthorizationManager, CourseOwnershipAuthorizationManager courseOwnershipAuthorizationManager, CourseMembershipAuthorizationManager courseMembershipAuthorizationManager, CriterionOwnershipAuthorizationManager criterionOwnershipAuthorizationManager, RubricOwnershipAuthorizationManager rubricOwnershipAuthorizationManager, CriterionMembershipAuthorizationManager criterionMembershipAuthorizationManager, RubricMembershipAuthorizationManager rubricMembershipAuthorizationManager, AssignCriterionToRubricAuthorizationManager assignCriterionToRubricAuthorizationManager, SectionMembershipAuthorizationManager sectionMembershipAuthorizationManager, SectionOwnershipAuthorizationManager sectionOwnershipAuthorizationManager, AssignRubricToSectionAuthorizationManager assignRubricToSectionAuthorizationManager, AssignInstructorToSectionAuthorizationManager assignInstructorToSectionAuthorizationManager, TeamMembershipAuthorizationManager teamMembershipAuthorizationManager, TeamOwnershipAuthorizationManager teamOwnershipAuthorizationManager, AssignStudentToTeamAuthorizationManager assignStudentToTeamAuthorizationManager, AssignInstructorToTeamAuthorizationManager assignInstructorToTeamAuthorizationManager, TransferTeamAuthorizationManager transferTeamAuthorizationManager, ActivityOwnershipAuthorizationManager activityOwnershipAuthorizationManager, ActivityMembershipAuthorizationManager activityMembershipAuthorizationManager, EvaluationOwnershipAuthorizationManager evaluationOwnershipAuthorizationManager, SectionInstructorAuthorizationManager sectionInstructorAuthorizationManager, StudentInstructorAuthorizationManager studentInstructorAuthorizationManager, StudentLifecycleAuthorizationManager studentLifecycleAuthorizationManager) throws NoSuchAlgorithmException {
         this.customBasicAuthenticationEntryPoint = customBasicAuthenticationEntryPoint;
         this.customBearerTokenAuthenticationEntryPoint = customBearerTokenAuthenticationEntryPoint;
         this.customBearerTokenAccessDeniedHandler = customBearerTokenAccessDeniedHandler;
@@ -125,6 +127,7 @@ public class SecurityConfiguration {
         this.evaluationOwnershipAuthorizationManager = evaluationOwnershipAuthorizationManager;
         this.sectionInstructorAuthorizationManager = sectionInstructorAuthorizationManager;
         this.studentInstructorAuthorizationManager = studentInstructorAuthorizationManager;
+        this.studentLifecycleAuthorizationManager = studentLifecycleAuthorizationManager;
 
         // Generate a public/private key pair.
         KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
@@ -134,8 +137,13 @@ public class SecurityConfiguration {
         this.privateKey = (RSAPrivateKey) keyPair.getPrivate();
     }
 
+    /**
+     * The active-account converter is a method parameter rather than a constructor dependency because it wraps
+     * the {@link #jwtAuthenticationConverter()} bean this class defines; taking it in the constructor would be
+     * a cycle.
+     */
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, ActiveAccountJwtAuthenticationConverter activeAccountJwtAuthenticationConverter) throws Exception {
         return http
                 .authorizeHttpRequests(authorizeHttpRequests -> authorizeHttpRequests
                         // Security rules for the /courses/** endpoint.
@@ -206,6 +214,8 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.GET, this.baseUrl + "/students/{studentId}").access(this.userOwnershipAuthorizationManager)
                         .requestMatchers(HttpMethod.PUT, this.baseUrl + "/students/{studentId}").access(this.userOwnershipAuthorizationManager)
                         .requestMatchers(HttpMethod.DELETE, this.baseUrl + "/students/{studentId}").access(this.userOwnershipAuthorizationManager)
+                        // UC-STU-deactivate-student: a section instructor or the course admin (BR-student-lifecycle), never the student herself
+                        .requestMatchers(HttpMethod.POST, this.baseUrl + "/students/{studentId}/deactivation").access(this.studentLifecycleAuthorizationManager)
                         .requestMatchers(HttpMethod.GET, this.baseUrl + "/students/teams/{teamId}").access(this.teamMembershipAuthorizationManager)
 
                         // Security rules for the /activities/** endpoint.
@@ -318,7 +328,11 @@ public class SecurityConfiguration {
                 .cors(Customizer.withDefaults())
                 .httpBasic(httpBasic -> httpBasic.authenticationEntryPoint(this.customBasicAuthenticationEntryPoint))
                 .oauth2ResourceServer(oauth2ResourceServer -> oauth2ResourceServer
-                        .jwt(Customizer.withDefaults())
+                        // Every bearer token is converted through the active-account check (FR-SEC-active-account),
+                        // so a deactivated or deleted user is refused on her next request, not only at her next login.
+                        // Registered explicitly: the resource server auto-detects only a bean of the concrete
+                        // JwtAuthenticationConverter class, not a Converter<Jwt, AbstractAuthenticationToken> component.
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(activeAccountJwtAuthenticationConverter))
                         .authenticationEntryPoint(this.customBearerTokenAuthenticationEntryPoint)
                         .accessDeniedHandler(this.customBearerTokenAccessDeniedHandler))
                 /* Configures the spring boot application as an OAuth2 Resource Server which authenticates all

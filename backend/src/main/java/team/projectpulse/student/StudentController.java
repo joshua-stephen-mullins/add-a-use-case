@@ -70,6 +70,17 @@ public class StudentController {
         return new Result(true, StatusCode.SUCCESS, "Update student successfully", updatedStudentDto);
     }
 
+    /**
+     * UC-STU-deactivate-student. A POST, not a PUT or DELETE: the action is not idempotent (a second call is
+     * refused as already deactivated) and deletes nothing, which is the distinction against deleteStudent.
+     */
+    @PostMapping("/{studentId}/deactivation")
+    public Result deactivateStudent(@PathVariable Integer studentId) {
+        Student deactivatedStudent = this.studentService.deactivateStudent(studentId);
+        StudentDto deactivatedStudentDto = this.studentToStudentDtoConverter.convert(deactivatedStudent);
+        return new Result(true, StatusCode.SUCCESS, "Deactivate student successfully", deactivatedStudentDto);
+    }
+
     @DeleteMapping("/{studentId}")
     public Result deleteStudent(@PathVariable Integer studentId) {
         this.studentService.deleteStudent(studentId);

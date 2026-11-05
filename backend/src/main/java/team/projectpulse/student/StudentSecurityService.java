@@ -1,13 +1,15 @@
 package team.projectpulse.student;
 
+import team.projectpulse.section.Section;
 import team.projectpulse.system.UserUtils;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
 /**
  * Answers the questions a route asks about one named student: is that student the caller herself
- * ({@code isStudentSelf}), and is the caller an instructor of that student's course section
- * ({@code isCurrentUserInstructorOfStudentSection}).
+ * ({@code isStudentSelf}), is the caller an instructor of that student's course section
+ * ({@code isCurrentUserInstructorOfStudentSection}), and may the caller change that student's standing, as a
+ * section instructor or the course admin ({@code canCurrentUserChangeStudentStanding}).
  *
  * <p>Every check fails closed: an id that names no row, or a link not yet established, is denied rather than
  * throwing. These methods run inside an {@code AuthorizationManager}, upstream of the {@code DispatcherServlet},
@@ -45,6 +47,25 @@ public class StudentSecurityService {
         }
         return student.getSection().getInstructors().stream()
                 .anyMatch(instructor -> instructor.getId().equals(instructorIdFromJwt));
+    }
+
+    /**
+     * Check if the user may change the student's standing (BR-student-lifecycle): an instructor assigned to the
+     * student's course section, or the admin of the student's course. Both clauses need the same student, so
+     * she is loaded once here rather than once per clause.
+     *
+     * @param studentId the id of the student we need to access, this is NOT the current user's Id
+     * @return
+     */
+    public boolean canCurrentUserChangeStudentStanding(Integer studentId) {
+        Integer userIdFromJwt = this.userUtils.getUserId();
+        Student student = this.studentRepository.findById(studentId).orElse(null);
+        if (student == null) {
+            return false;
+        }
+        Section section = student.getSection();
+        return section.getInstructors().stream().anyMatch(instructor -> instructor.getId().equals(userIdFromJwt))
+                || section.getCourse().getCourseAdmin().getId().equals(userIdFromJwt);
     }
 
 }

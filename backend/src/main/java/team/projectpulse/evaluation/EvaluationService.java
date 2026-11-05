@@ -67,6 +67,12 @@ public class EvaluationService {
             throw new PeerEvaluationIllegalArgumentException("The evaluator and evaluatee must be on the same team.");
         }
 
+        // A deactivated teammate is neither owed nor may receive a peer evaluation (BR-deactivated-student-standing):
+        // not owed (BR-submission-owed) means not accepted, so the three readers of enabled agree
+        if (!newPeerEvaluation.getEvaluatee().isEnabled()) {
+            throw new PeerEvaluationIllegalArgumentException("You cannot evaluate a deactivated teammate.");
+        }
+
         // Make sure this is not a duplicate evaluation
         if (this.evaluationRepository.findByWeekAndEvaluatorIdAndEvaluateeId(newPeerEvaluation.getWeek(), newPeerEvaluation.getEvaluator().getId(), newPeerEvaluation.getEvaluatee().getId()).isPresent()) {
             throw new PeerEvaluationIllegalArgumentException("You have already submitted an evaluation for " + newPeerEvaluation.getEvaluatee().getFirstName() + " in this week.");
@@ -170,7 +176,14 @@ public class EvaluationService {
     public PeerEvaluationAverage getPeerEvaluationAverage(String week, Student student) {
         // Get all evaluations for the student in the given week
         List<PeerEvaluation> evaluations = this.evaluationRepository.findByWeekAndEvaluateeId(week, student.getId());
+        return getPeerEvaluationAverage(week, student, evaluations);
+    }
 
+    /**
+     * The average over evaluations already loaded for the week, so a caller that needs the list for its own
+     * decision (the section report) reads it once.
+     */
+    private PeerEvaluationAverage getPeerEvaluationAverage(String week, Student student, List<PeerEvaluation> evaluations) {
         PeerEvaluationAverage peerEvaluationAverage = new PeerEvaluationAverage();
 
         peerEvaluationAverage.setStudentId(student.getId());
@@ -225,7 +238,18 @@ public class EvaluationService {
 
         // For each student, compute her average total score, collect all public comments and private comments, and compute rating averages for each criterion.
         students.forEach(student -> {
-            PeerEvaluationAverage peerEvaluationAverage = getPeerEvaluationAverage(week, student);
+            List<PeerEvaluation> evaluations = this.evaluationRepository.findByWeekAndEvaluateeId(week, student.getId());
+
+            // A deactivated student is listed only for the weeks in which at least one evaluation of her (her
+            // self-evaluation included) is on record (BR-deactivated-student-standing): her past weeks stay visible
+            // and no empty row appears for the weeks after her deactivation, without storing a deactivation date.
+            // An active student is listed even with no evaluation, since that row is how an instructor sees she has
+            // received none.
+            if (!student.isEnabled() && evaluations.isEmpty()) {
+                return;
+            }
+
+            PeerEvaluationAverage peerEvaluationAverage = getPeerEvaluationAverage(week, student, evaluations);
             report.getPeerEvaluationAverages().add(peerEvaluationAverage);
         });
 

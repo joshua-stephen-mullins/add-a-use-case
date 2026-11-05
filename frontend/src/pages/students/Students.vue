@@ -35,19 +35,31 @@
       <el-table-column label="Team" prop="teamName"></el-table-column>
       <el-table-column label="Status" prop="enabled">
         <template #default="{ row }">
-          <el-tag type="success" v-if="row.enabled">Enabled</el-tag>
-          <el-tag type="danger" v-else>Disabled</el-tag>
+          <el-tag type="success" v-if="row.enabled" data-cy="student-status">Enabled</el-tag>
+          <el-tag type="danger" v-else data-cy="student-status">Disabled</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="Operations" width="120">
+      <el-table-column label="Operations" width="140">
         <template #default="{ row }">
           <el-button
             icon="Edit"
             circle
             plain
             type="primary"
+            data-cy="student-edit"
             @click.stop="showEditStudentDialog(row)"
           ></el-button>
+          <!-- UC-STU-deactivate-student: offered only for an active student (3a never reaches the server from here) -->
+          <el-tooltip content="Deactivate" placement="top" v-if="row.enabled">
+            <el-button
+              icon="CircleClose"
+              circle
+              plain
+              type="danger"
+              data-cy="student-deactivate"
+              @click.stop="confirmDeactivation(row)"
+            ></el-button>
+          </el-tooltip>
         </template>
       </el-table-column>
       <template #empty>
@@ -78,7 +90,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { searchStudents } from '@/apis/student'
+import { searchStudents, deactivateStudent } from '@/apis/student'
 import type {
   SearchStudentByCriteriaResponse,
   Student,
@@ -86,7 +98,7 @@ import type {
 } from '@/apis/student/types'
 import { useSettingsStore } from '@/stores/settings'
 import EditStudentForm from './EditStudentForm.vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const searchCriteria = ref<StudentSearchCriteria>({
   sectionId: NaN,
@@ -162,6 +174,48 @@ function showEditStudentDialog(student: Student) {
 function closeDialog() {
   dialogVisible.value = false
   loadStudents()
+}
+
+// UC-STU-deactivate-student, step 4: warn about the consequences and ask for confirmation before anything is sent
+function confirmDeactivation(student: Student) {
+  const name = `${student.firstName} ${student.lastName}`
+  ElMessageBox.confirm(
+    `${name} will no longer be able to log in, and any session already open is denied at the next request. ` +
+      'This student can no longer submit weekly activity reports or peer evaluations; teammates are neither asked ' +
+      'nor allowed to evaluate this student, and peer evaluation reports show this student only for the weeks ' +
+      'already on record. The account, the current team membership, and all submitted work are kept, and the ' +
+      'account can be reactivated later. This does not delete the student.',
+    'Deactivate this student?',
+    {
+      confirmButtonText: 'Deactivate',
+      cancelButtonText: 'Cancel',
+      confirmButtonClass: 'student-deactivate-confirm',
+      cancelButtonClass: 'student-deactivate-cancel',
+      type: 'warning',
+      // The POST is sent from beforeClose so the dialog stays open, with Deactivate disabled, while it is in
+      // flight: a second click sends nothing. Cancel (5a) closes the dialog and sends nothing.
+      beforeClose: async (action, instance, done) => {
+        if (action !== 'confirm') {
+          done()
+          return
+        }
+        instance.confirmButtonLoading = true
+        try {
+          const result = await deactivateStudent(student.id as number)
+          ElMessage.success(result.message)
+        } catch {
+          // A 403 or 404 is already routed to its page by the request instance, and any other error is already
+          // toasted there; reload below so a stale row (3a) catches up with the server
+        } finally {
+          instance.confirmButtonLoading = false
+          done()
+          loadStudents()
+        }
+      }
+    }
+  ).catch(() => {
+    // Cancelled (5a): nothing was sent and the list is unchanged
+  })
 }
 
 import { useRouter } from 'vue-router'

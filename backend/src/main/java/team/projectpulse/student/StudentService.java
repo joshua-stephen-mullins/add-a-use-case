@@ -9,8 +9,6 @@ import jakarta.transaction.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -108,21 +106,40 @@ public class StudentService {
         Student oldStudent = this.studentRepository.findById(studentId)
                 .orElseThrow(() -> new ObjectNotFoundException("student", studentId));
 
-        // If the user is not an admin, then the user can only update her username, first rubricName, last rubricName, and email
+        // Anyone allowed through the route may update the username, first name, last name, and email
         oldStudent.setUsername(update.getUsername());
         oldStudent.setFirstName(update.getFirstName());
         oldStudent.setLastName(update.getLastName());
         oldStudent.setEmail(update.getEmail());
 
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-
-        // If the user is an admin, then the user can update all the fields
-        if (authentication.getAuthorities().stream().anyMatch(grantedAuthority -> grantedAuthority.getAuthority().equals("ROLE_instructor"))) {
-            oldStudent.setEnabled(update.isEnabled());
-//            oldStudent.setRoles(update.getRoles());
+        // An update never lowers enabled: deactivation happens only through UC-STU-deactivate-student, so its
+        // warning and confirmation cannot be bypassed by an edit. A false or absent value leaves the flag as it is.
+        // An instructor may still raise it, which is the interim reactivation path until UC-STU-reactivate-student
+        // is built.
+        if (update.isEnabled() && this.userUtils.hasRole("ROLE_instructor")) {
+            oldStudent.setEnabled(true);
         }
 
         return this.studentRepository.save(oldStudent);
+    }
+
+    /**
+     * UC-STU-deactivate-student: revoke the student's access while keeping her account, her team membership, and
+     * her submitted work (BR-deactivated-student-standing). Only {@code enabled} changes; the per-request check in
+     * {@code ActiveAccountJwtAuthenticationConverter} denies her next request (FR-SEC-active-account).
+     *
+     * @throws IllegalArgumentException if the student is already deactivated (extension 3a)
+     */
+    public Student deactivateStudent(Integer studentId) {
+        Student student = this.studentRepository.findById(studentId)
+                .orElseThrow(() -> new ObjectNotFoundException("student", studentId));
+
+        if (!student.isEnabled()) {
+            throw new IllegalArgumentException("This student is already deactivated.");
+        }
+
+        student.setEnabled(false);
+        return this.studentRepository.save(student);
     }
 
     public void deleteStudent(Integer studentId) {
