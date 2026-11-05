@@ -1478,7 +1478,9 @@ Details:
 **Business Rules:** BR-student-lifecycle (who may deactivate), BR-deactivated-student-standing (what deactivation leaves in place)
 
 **Associated Information:**
-- Consequence of the deactivation: The student will no longer be able to log in, and a session she already has open is denied at her next request (FR-SEC-active-account); she can no longer submit weekly activity reports and peer evaluations; her teammates are neither asked nor allowed to evaluate her, and peer evaluation reports show her only for the weeks already on record (BR-submission-owed, BR-deactivated-student-standing). The student's account, her membership of her current team (BR-deactivated-student-standing), and her previously submitted work are kept in the system. Deactivation will NOT remove the student from the system, and the account can be reactivated in the future (UC-STU-reactivate-student: Reactivate a student). This is distinct from deletion (UC-STU-delete-student: Delete a student), which is a physical, unrecoverable delete. The course admin or instructor shall be able to cancel the use case at any time prior to submitting it.
+- Consequence of the deactivation: The student will no longer be able to log in, and a session she already has open is denied at her next request (FR-SEC-active-account); she can no longer submit weekly activity reports and peer evaluations; her teammates are neither asked nor allowed to evaluate her, and peer evaluation reports show her only for the weeks already on record (BR-submission-owed, BR-deactivated-student-standing). The student's account, her membership of her current team (BR-deactivated-student-standing), and her previously submitted work are kept in the system. Deactivation will NOT remove the student from the system, and the account can be reactivated in the future (UC-STU-reactivate-student: Reactivate a student). This is distinct from deletion (UC-STU-delete-student: Delete a student), which is a physical, unrecoverable delete.
+- Deactivation happens only through this use case: editing a student's details never deactivates her, so the warning and confirmation of step 4 cannot be bypassed.
+- The course admin or instructor shall be able to cancel the use case at any time prior to submitting it.
 
 **Related Use Cases:** UC-STU-delete-student: Delete a student; UC-STU-reactivate-student: Reactivate a student
 **Assumptions:**
@@ -1517,6 +1519,7 @@ Details:
 
 **Associated Information:**
 - Reactivation restores access only: the student's membership of her team was kept when she was deactivated (BR-deactivated-student-standing), so reactivation neither returns her to a team nor requires a team assignment.
+- Reactivation happens only through this use case once it is built; editing a student's details never deactivates her (UC-STU-deactivate-student).
 - The course admin or instructor shall be able to cancel the use case at any time prior to submitting it.
 
 **Related Use Cases:** UC-STU-delete-student: Delete a student; UC-STU-deactivate-student: Deactivate a student
