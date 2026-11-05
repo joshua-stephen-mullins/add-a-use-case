@@ -123,6 +123,25 @@ public class StudentService {
         return this.studentRepository.save(oldStudent);
     }
 
+    /**
+     * UC-STU-deactivate-student: revoke the student's access while keeping her account, her team membership, and
+     * her submitted work (BR-deactivated-student-standing). Only {@code enabled} changes; the per-request check in
+     * {@code ActiveAccountJwtAuthenticationConverter} denies her next request (FR-SEC-active-account).
+     *
+     * @throws IllegalArgumentException if the student is already deactivated (extension 3a)
+     */
+    public Student deactivateStudent(Integer studentId) {
+        Student student = this.studentRepository.findById(studentId)
+                .orElseThrow(() -> new ObjectNotFoundException("student", studentId));
+
+        if (!student.isEnabled()) {
+            throw new IllegalArgumentException("This student is already deactivated.");
+        }
+
+        student.setEnabled(false);
+        return this.studentRepository.save(student);
+    }
+
     public void deleteStudent(Integer studentId) {
         this.studentRepository.findById(studentId)
                 .orElseThrow(() -> new ObjectNotFoundException("student", studentId));
