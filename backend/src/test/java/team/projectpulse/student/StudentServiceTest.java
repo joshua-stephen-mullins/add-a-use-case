@@ -1,11 +1,9 @@
 package team.projectpulse.student;
 
 import org.junit.jupiter.api.AfterEach;
-import team.projectpulse.instructor.Instructor;
 import team.projectpulse.section.Section;
 import team.projectpulse.section.SectionRepository;
 import team.projectpulse.system.UserUtils;
-import team.projectpulse.user.MyUserPrincipal;
 import team.projectpulse.user.userinvitation.UserInvitationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,8 +16,6 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
@@ -129,14 +125,7 @@ class StudentServiceTest {
         Student update = new Student("john", "John (updated)", "Smith (updated)", "j.smith@abc.edu (updated)", "", false, "admin student");
         given(this.studentRepository.findById(1)).willReturn(Optional.of(this.students.get(0)));
         given(this.studentRepository.save(any(Student.class))).willReturn(this.students.get(0));
-
-        Instructor instructor = new Instructor();
-        instructor.setRoles("student");
-        MyUserPrincipal myUserPrincipal = new MyUserPrincipal(instructor);
-
-        SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
-        securityContext.setAuthentication(new UsernamePasswordAuthenticationToken(myUserPrincipal, null, myUserPrincipal.getAuthorities()));
-        SecurityContextHolder.setContext(securityContext);
+        // A student has no ROLE_instructor; the unstubbed mock answers false
 
         // When
         Student result = this.studentService.updateStudent(1, update);
@@ -150,20 +139,16 @@ class StudentServiceTest {
         assertThat(result.isEnabled()).isNotEqualTo(update.isEnabled());
     }
 
+    /**
+     * UC-STU-deactivate-student, trunk: editing a student never deactivates her, so the warning and confirmation
+     * of the deactivate action cannot be bypassed through the edit form or a direct PUT.
+     */
     @Test
-    void testInstructorUpdatesStudent() {
+    void testInstructorUpdateDoesNotLowerEnabled() {
         // Given
         Student update = new Student("john", "John (updated)", "Smith (updated)", "j.smith@abc.edu (updated)", "", false, "admin student");
         given(this.studentRepository.findById(1)).willReturn(Optional.of(this.students.get(0)));
         given(this.studentRepository.save(any(Student.class))).willReturn(this.students.get(0));
-
-        Instructor instructor = new Instructor();
-        instructor.setRoles("instructor");
-        MyUserPrincipal myUserPrincipal = new MyUserPrincipal(instructor);
-
-        SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
-        securityContext.setAuthentication(new UsernamePasswordAuthenticationToken(myUserPrincipal, null, myUserPrincipal.getAuthorities()));
-        SecurityContextHolder.setContext(securityContext);
 
         // When
         Student result = this.studentService.updateStudent(1, update);
@@ -173,8 +158,49 @@ class StudentServiceTest {
         assertThat(result.getFirstName()).isEqualTo(update.getFirstName());
         assertThat(result.getLastName()).isEqualTo(update.getLastName());
         assertThat(result.getEmail()).isEqualTo(update.getEmail());
-//        assertThat(result.getRoles()).isEqualTo(update.getRoles());
-        assertThat(result.isEnabled()).isEqualTo(update.isEnabled());
+        assertThat(result.isEnabled()).isTrue(); // enabled: false in the update is ignored, the student stays active
+    }
+
+    /**
+     * The interim reactivation path until UC-STU-reactivate-student is built: an instructor's update with
+     * enabled: true raises the flag of a deactivated student.
+     */
+    @Test
+    void testInstructorUpdateRaisesEnabledOfADeactivatedStudent() {
+        // Given
+        Student deactivatedJohn = this.students.get(0);
+        deactivatedJohn.setEnabled(false);
+        Student update = new Student("john", "John", "Smith", "j.smith@abc.edu", "", true, "student");
+        given(this.studentRepository.findById(1)).willReturn(Optional.of(deactivatedJohn));
+        given(this.studentRepository.save(any(Student.class))).willReturn(deactivatedJohn);
+        given(this.userUtils.hasRole("ROLE_instructor")).willReturn(true);
+
+        // When
+        Student result = this.studentService.updateStudent(1, update);
+
+        // Then
+        assertThat(result.isEnabled()).isTrue();
+    }
+
+    /**
+     * Raising the flag is an instructor's path only: a caller without ROLE_instructor sending enabled: true for a
+     * deactivated student leaves her deactivated.
+     */
+    @Test
+    void testStudentUpdateDoesNotRaiseEnabled() {
+        // Given
+        Student deactivatedJohn = this.students.get(0);
+        deactivatedJohn.setEnabled(false);
+        Student update = new Student("john", "John", "Smith", "j.smith@abc.edu", "", true, "student");
+        given(this.studentRepository.findById(1)).willReturn(Optional.of(deactivatedJohn));
+        given(this.studentRepository.save(any(Student.class))).willReturn(deactivatedJohn);
+        given(this.userUtils.hasRole("ROLE_instructor")).willReturn(false);
+
+        // When
+        Student result = this.studentService.updateStudent(1, update);
+
+        // Then
+        assertThat(result.isEnabled()).isFalse();
     }
 
     @Test
