@@ -49,6 +49,7 @@ Each Level-2 doc covers exactly one UC area and is named after that area's lower
 | File | Area | Scope |
 |------|------|-------|
 | `not.md` | NOT | who still owes a weekly activity report or peer evaluation; scheduled and on-demand reminders |
+| `stu.md` | STU | students: the deactivate action, who may call it, and what deactivated means to peer evaluations and to every request |
 | `tpl.md` | TPL | templates / team-document provisioning |
 | `glo.md` | GLO | glossary |
 | `doc.md` | DOC | requirement documents (sections, locking) |
